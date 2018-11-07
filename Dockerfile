@@ -1,10 +1,9 @@
-FROM golang:1.10 as builder
+FROM fnproject/go:dev as build-stage
 
-COPY vendor       /go/src/github.com/fnproject/hotwrap/vendor
-COPY  hotwrap.go  /go/src/github.com/fnproject/hotwrap/hotwrap.go
+ADD . /go/src/func
+WORKDIR /go/src/func
+RUN go test -v ./... && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -installsuffix cgo -ldflags="-w -s" -o  /hotwrap
 
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -installsuffix cgo -ldflags="-w -s" -o  /hotwrap  /go/src/github.com/fnproject/hotwrap/hotwrap.go
+FROM fnproject/go
 
-FROM scratch
-
-COPY --from=builder /hotwrap /hotwrap
+COPY --from=build-stage /hotwrap /hotwrap

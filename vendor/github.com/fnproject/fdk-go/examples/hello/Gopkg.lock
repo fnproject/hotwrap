@@ -4,8 +4,11 @@
 [[projects]]
   branch = "master"
   name = "github.com/fnproject/fdk-go"
-  packages = ["."]
-  revision = "26ed643bea6837eb6ca757e0d98155b42e13e1dc"
+  packages = [
+    ".",
+    "utils"
+  ]
+  revision = "c6ce6afbce0935ffdf0e228471406d0f966736a5"
 
 [solve-meta]
   analyzer-name = "dep"
