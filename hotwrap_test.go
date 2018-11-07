@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"testing"
 
@@ -31,15 +32,16 @@ type Person struct {
 func TestHotWrap(t *testing.T) {
 	var in, out bytes.Buffer
 	cmd := "echo"
+
 	expectedPerson := Person{"John"}
 	json.NewEncoder(&in).Encode(expectedPerson)
 
 	ctx := fdk.WithContext(context.Background(), testContext{})
-	err := runExec(ctx, cmd, []string{in.String()}, nil, &out)
+	err := runExec(ctx, fmt.Sprintf(
+		"%v %v", cmd, `$(</dev/stdin)`), &in, &out)
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
-
 	var actualPerson Person
 	err = json.NewDecoder(&out).Decode(&actualPerson)
 	if err != nil {

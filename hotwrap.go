@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -33,7 +34,8 @@ func main() {
 
 func withError(execName string, execArgs []string) fdk.HandlerFunc {
 	f := func(ctx context.Context, in io.Reader, out io.Writer) {
-		err := runExec(ctx, execName, execArgs, in, out)
+		err := runExec(ctx, fmt.Sprintf(
+			"%v %v", execName, strings.Join(execArgs, " ")), in, out)
 		if err != nil {
 			fdk.WriteStatus(out, http.StatusInternalServerError)
 			io.WriteString(out, err.Error())
@@ -44,7 +46,7 @@ func withError(execName string, execArgs []string) fdk.HandlerFunc {
 	return f
 }
 
-func runExec(ctx context.Context, execName string, execArgs []string, in io.Reader, out io.Writer) error {
+func runExec(ctx context.Context, execCMDwithArgs string, in io.Reader, out io.Writer) error {
 	fctx := fdk.GetContext(ctx)
 	defer timeTrack(time.Now(), fmt.Sprintf("run-exec-%v", fctx.CallID()))
 	cancel := make(chan os.Signal, 3)
@@ -52,7 +54,8 @@ func runExec(ctx context.Context, execName string, execArgs []string, in io.Read
 	defer signal.Stop(cancel)
 	result := make(chan error, 1)
 	quit := make(chan struct{})
-	cmd := exec.CommandContext(ctx, execName, execArgs...)
+	cmd := exec.CommandContext(ctx, "/bin/bash", "-c", execCMDwithArgs)
+
 	if in != nil {
 		cmd.Stdin = in
 	}
