@@ -28,6 +28,8 @@ func main() {
 		args = os.Args[2:]
 	}
 
+	os.Stderr.WriteString(fmt.Sprintf(
+		"%v %v", cmd, strings.Join(args, " ")))
 	fdk.Handle(withError(cmd, args))
 
 }
