@@ -10,7 +10,7 @@ import (
 	"github.com/fnproject/fdk-go"
 )
 
-type testContext struct {}
+type testContext struct{}
 
 func (c testContext) Config() map[string]string { return nil }
 func (c testContext) Header() http.Header {
@@ -19,9 +19,9 @@ func (c testContext) Header() http.Header {
 
 	return hs
 }
-func (c testContext) AppID() string { return "blah-app" }
-func (c testContext) CallID() string { return "blah-app" }
-func (c testContext) FnID() string { return "blah-app" }
+func (c testContext) AppID() string       { return "blah-app" }
+func (c testContext) CallID() string      { return "blah-app" }
+func (c testContext) FnID() string        { return "blah-app" }
 func (c testContext) ContentType() string { return "application/json" }
 
 type Person struct {
@@ -35,7 +35,7 @@ func TestHotWrap(t *testing.T) {
 	json.NewEncoder(&in).Encode(expectedPerson)
 
 	ctx := fdk.WithContext(context.Background(), testContext{})
-	err := runExec(ctx, cmd, []string{in.String(),}, nil, &out)
+	err := runExec(ctx, cmd, []string{in.String()}, nil, &out)
 	if err != nil {
 		t.Fatalf(err.Error())
 	}

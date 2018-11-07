@@ -32,7 +32,7 @@ func main() {
 }
 
 func withError(execName string, execArgs []string) fdk.HandlerFunc {
-	f :=  func(ctx context.Context, in io.Reader, out io.Writer){
+	f := func(ctx context.Context, in io.Reader, out io.Writer) {
 		err := runExec(ctx, execName, execArgs, in, out)
 		if err != nil {
 			fdk.WriteStatus(out, http.StatusInternalServerError)
