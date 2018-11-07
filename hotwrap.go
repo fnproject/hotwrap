@@ -49,6 +49,7 @@ func withError(execName string, execArgs []string) fdk.HandlerFunc {
 }
 
 func runExec(ctx context.Context, execCMDwithArgs string, in io.Reader, out io.Writer) error {
+	log.Println(execCMDwithArgs)
 	fctx := fdk.GetContext(ctx)
 	defer timeTrack(time.Now(), fmt.Sprintf("run-exec-%v", fctx.CallID()))
 	cancel := make(chan os.Signal, 3)
@@ -56,8 +57,8 @@ func runExec(ctx context.Context, execCMDwithArgs string, in io.Reader, out io.W
 	defer signal.Stop(cancel)
 	result := make(chan error, 1)
 	quit := make(chan struct{})
-	cmd := exec.CommandContext(ctx, "/bin/bash", "-c", execCMDwithArgs)
-
+	cmd := exec.CommandContext(ctx, "/bin/sh", "-c", execCMDwithArgs)
+	cmd.Env = os.Environ()
 	if in != nil {
 		cmd.Stdin = in
 	}

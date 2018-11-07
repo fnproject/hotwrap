@@ -7,5 +7,4 @@ RUN apk update && apk add bash
 # Install hotwrap binary in your container
 COPY --from=hotwrap /hotwrap /hotwrap
 
-
-ENTRYPOINT ["/hotwrap", "awk", "'{print $2}'"]
+ENTRYPOINT ["/hotwrap", "awk", "'{print $1}'"]
