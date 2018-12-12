@@ -1,13 +1,19 @@
 package main
 
 import (
-	"github.com/fnproject/fdk-go"
 	"context"
+	"fmt"
 	"io"
-	"os"
 	"log"
+	"net/http"
+	"os"
 	"os/exec"
+	"os/signal"
 	"strings"
+	"syscall"
+	"time"
+
+	"github.com/fnproject/fdk-go"
 )
 
 func main() {
@@ -16,70 +22,72 @@ func main() {
 		log.Fatal("Failed to start hotwrap, no command specified in arguments ")
 	}
 
-
-	if os.Getenv("HOTWRAP_VERBOSE") != "" {
-
-	}
 	cmd := os.Args[1]
 	var args []string
 	if len(os.Args) > 1 {
 		args = os.Args[2:]
 	}
 
-	fdk.Handle(&hotWrap{
-		cmd:  cmd,
-		args: args,
-		env:  os.Environ(),
-	})
+	os.Stderr.WriteString(fmt.Sprintf(
+		"%v %v", cmd, strings.Join(args, " ")))
+	fdk.Handle(withError(cmd, args))
 
 }
 
-type hotWrap struct {
-	verbose bool
-	cmd     string
-	args    []string
-	env     []string
+func withError(execName string, execArgs []string) fdk.HandlerFunc {
+	f := func(ctx context.Context, in io.Reader, out io.Writer) {
+		err := runExec(ctx, fmt.Sprintf(
+			"%v %v", execName, strings.Join(execArgs, " ")), in, out)
+		if err != nil {
+			fdk.WriteStatus(out, http.StatusInternalServerError)
+			io.WriteString(out, err.Error())
+			return
+		}
+		fdk.WriteStatus(out, http.StatusOK)
+	}
+	return f
 }
 
-func (hw *hotWrap) logf(fmt string, args ...interface{}) {
-	if hw.verbose {
-		log.Printf(fmt, args...)
+func runExec(ctx context.Context, execCMDwithArgs string, in io.Reader, out io.Writer) error {
+	log.Println(execCMDwithArgs)
+	fctx := fdk.GetContext(ctx)
+	defer timeTrack(time.Now(), fmt.Sprintf("run-exec-%v", fctx.CallID()))
+	cancel := make(chan os.Signal, 3)
+	signal.Notify(cancel, os.Interrupt)
+	defer signal.Stop(cancel)
+	result := make(chan error, 1)
+	quit := make(chan struct{})
+	cmd := exec.CommandContext(ctx, "/bin/sh", "-c", execCMDwithArgs)
+	cmd.Env = os.Environ()
+	if in != nil {
+		cmd.Stdin = in
 	}
+	if out != nil {
+		cmd.Stdout = out
+	}
+	cmd.Stderr = os.Stderr
+
+	go func(cmd *exec.Cmd, done chan<- error) {
+		done <- cmd.Run()
+	}(cmd, result)
+
+	select {
+	case err := <-result:
+		close(quit)
+		fmt.Fprintln(os.Stderr)
+		if err != nil {
+			if exitErr, ok := err.(*exec.ExitError); ok {
+				if status, ok := exitErr.Sys().(syscall.WaitStatus); ok {
+					log.Printf("exit code: %d\n", status.ExitStatus())
+				}
+			}
+			return fmt.Errorf("error running exec: %v", err)
+		}
+	}
+	return nil
 }
 
-func (hw *hotWrap) Serve(ctx context.Context, r io.Reader, w io.Writer) {
-
-
-	hw.logf("Running '%s %s'", hw.cmd, strings.Join(hw.args," "))
-
-	baseEnv := hw.env
-
-	cmd := exec.Command(hw.cmd, hw.args...)
-	cmd.Env = baseEnv
-	cmd.Stdout = w
-	cmd.Stdin = r
-
-	stderr, err := cmd.StderrPipe()
-
-	if err !=nil {
-		log.Fatalf("Failed to open stderr pipe %s",err)
-
-	}
-
-	go func(){
-		io.Copy(os.Stderr,stderr)
-	}()
-
-	err = cmd.Start()
-	if err !=nil {
-		log.Fatalf("Failed to start command %s",err)
-	}
-
-	err = cmd.Wait()
-
-	if ee,ok:= err.(*exec.ExitError); ok  {
-		log.Printf("Command %s exited with status %s",hw.cmd,ee.ProcessState)
-		fdk.WriteStatus(w, 500)
-	}
-
+func timeTrack(start time.Time, name string) {
+	elapsed := time.Since(start)
+	log.Printf("%s took %s\n", name, elapsed)
 }
