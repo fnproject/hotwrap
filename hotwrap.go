@@ -51,7 +51,7 @@ func withError(execName string, execArgs []string) fdk.HandlerFunc {
 func runExec(ctx context.Context, execCMDwithArgs string, in io.Reader, out io.Writer) error {
 	log.Println(execCMDwithArgs)
 	fctx := fdk.GetContext(ctx)
-	hdr := fctx.Header() //dd
+	hdr := fctx.Header()
 	defer timeTrack(time.Now(), fmt.Sprintf("run-exec-%v", fctx.CallID()))
 	cancel := make(chan os.Signal, 3)
 	signal.Notify(cancel, os.Interrupt)
