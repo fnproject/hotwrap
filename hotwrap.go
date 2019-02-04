@@ -51,6 +51,7 @@ func withError(execName string, execArgs []string) fdk.HandlerFunc {
 func runExec(ctx context.Context, execCMDwithArgs string, in io.Reader, out io.Writer) error {
 	log.Println(execCMDwithArgs)
 	fctx := fdk.GetContext(ctx)
+	hdr := fctx.Header() //dd
 	defer timeTrack(time.Now(), fmt.Sprintf("run-exec-%v", fctx.CallID()))
 	cancel := make(chan os.Signal, 3)
 	signal.Notify(cancel, os.Interrupt)
@@ -58,7 +59,21 @@ func runExec(ctx context.Context, execCMDwithArgs string, in io.Reader, out io.W
 	result := make(chan error, 1)
 	quit := make(chan struct{})
 	cmd := exec.CommandContext(ctx, "/bin/sh", "-c", execCMDwithArgs)
-	cmd.Env = os.Environ()
+
+	funcEnv := os.Environ()
+	for k, vs := range hdr {
+		switch {
+		case strings.HasPrefix(k, "Fn-Http-H-Accept"):
+		case strings.HasPrefix(k, "Fn-Http-H-User-Agent"):
+		case strings.HasPrefix(k, "Fn-Http-H-Content-Length"):
+		case strings.HasPrefix(k, "Fn-Http-H-"):
+			envVar := "FN_HEADER_" + strings.TrimPrefix(k, "Fn-Http-H-") + "=" + vs[0]
+			funcEnv = append(funcEnv, envVar)
+		default:
+		}
+	}
+	cmd.Env = funcEnv
+
 	if in != nil {
 		cmd.Stdin = in
 	}
