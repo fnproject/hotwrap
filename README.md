@@ -31,17 +31,16 @@ Add Hotwrap to your container as follows:
 
 Dockerfile:
 ```
-# Pull the hotwrap container  as a build dependency 
-FROM fnproject/hotwrap:latest as hotwrap
-
 ## Start of your normal docker file 
 FROM alpine:latest
+
+# Install hotwrap binary in your container 
+COPY --from=fnproject/hotwrap:latest  /hotwrap /hotwrap 
 
 # just any old command 
 CMD /usr/bin/wc -l   
 
-# Install hotwrap binary in your container 
-COPY --from=hotwrap /hotwrap /hotwrap 
+# update entrypoint to use hotwrap, this will wrap your command 
 ENTRYPOINT ["/hotwrap"]
 ```
 

@@ -1,0 +1,13 @@
+/fn.exe
+/fn_linux
+/fn_mac
+/fn
+/fn_alpine
+tmp/
+vendor/
+_vendor*/
+/cli
+data/
+.vscode/
+.idea/
+**/*.iml

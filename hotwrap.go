@@ -16,10 +16,16 @@ import (
 	"github.com/fnproject/fdk-go"
 )
 
+var debug = false
+
 func main() {
 
 	if len(os.Args) < 2 {
 		log.Fatal("Failed to start hotwrap, no command specified in arguments ")
+	}
+
+	if os.Getenv("FN_HOTWRAP_VERBOSE") == "true" {
+		debug = true
 	}
 
 	cmd := os.Args[1]
@@ -28,8 +34,9 @@ func main() {
 		args = os.Args[2:]
 	}
 
-	os.Stderr.WriteString(fmt.Sprintf(
-		"%v %v", cmd, strings.Join(args, " ")))
+	if debug {
+		log.Printf("hotwrap running command:  %v %v", cmd, strings.Join(args, " "))
+	}
 	fdk.Handle(withError(cmd, args))
 
 }
@@ -40,7 +47,11 @@ func withError(execName string, execArgs []string) fdk.HandlerFunc {
 			"%v %v", execName, strings.Join(execArgs, " ")), in, out)
 		if err != nil {
 			fdk.WriteStatus(out, http.StatusInternalServerError)
-			io.WriteString(out, err.Error())
+			_, writeErr := io.WriteString(out, err.Error())
+			if writeErr != nil && debug {
+				log.Print("Failed to write error details to stdout")
+			}
+
 			return
 		}
 		fdk.WriteStatus(out, http.StatusOK)
@@ -55,39 +66,35 @@ func runExec(ctx context.Context, execCMDwithArgs string, in io.Reader, out io.W
 	cancel := make(chan os.Signal, 3)
 	signal.Notify(cancel, os.Interrupt)
 	defer signal.Stop(cancel)
-	result := make(chan error, 1)
-	quit := make(chan struct{})
 	cmd := exec.CommandContext(ctx, "/bin/sh", "-c", execCMDwithArgs)
 	cmd.Env = os.Environ()
 	if in != nil {
 		cmd.Stdin = in
 	}
+
 	if out != nil {
 		cmd.Stdout = out
 	}
+
 	cmd.Stderr = os.Stderr
+	err := cmd.Run()
 
-	go func(cmd *exec.Cmd, done chan<- error) {
-		done <- cmd.Run()
-	}(cmd, result)
-
-	select {
-	case err := <-result:
-		close(quit)
-		fmt.Fprintln(os.Stderr)
-		if err != nil {
-			if exitErr, ok := err.(*exec.ExitError); ok {
-				if status, ok := exitErr.Sys().(syscall.WaitStatus); ok {
-					log.Printf("exit code: %d\n", status.ExitStatus())
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			if status, ok := exitErr.Sys().(syscall.WaitStatus); ok {
+				if debug {
+					log.Printf("hotwrap: exit code: %d\n", status.ExitStatus())
 				}
 			}
-			return fmt.Errorf("error running exec: %v", err)
 		}
+		return fmt.Errorf("error running exec: %v", err)
 	}
 	return nil
 }
 
 func timeTrack(start time.Time, name string) {
 	elapsed := time.Since(start)
-	log.Printf("%s took %s\n", name, elapsed)
+	if debug {
+		log.Printf("%s took %s\n", name, elapsed)
+	}
 }
