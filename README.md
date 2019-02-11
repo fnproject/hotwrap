@@ -100,7 +100,7 @@ HotWrap is a portable  statically linked binary that should work in any linux co
 
 ```
 
-you function will see the following environment 
+your function will see the following environment: 
 
 ```
 FN_HTTP_METHOD=GET
