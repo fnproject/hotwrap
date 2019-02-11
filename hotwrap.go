@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"regexp"
 	"strings"
 	"syscall"
 	"time"
@@ -59,6 +60,9 @@ func withError(execName string, execArgs []string) fdk.HandlerFunc {
 	return f
 }
 
+// We explicitly omit valid headers and restrict to only those that can be trivially converted to env vars
+var validHeaderRegex = regexp.MustCompile("[A-Za-z][A-Za-z0-9-_]*")
+
 func runExec(ctx context.Context, execCMDwithArgs string, in io.Reader, out io.Writer) error {
 	log.Println(execCMDwithArgs)
 	fctx := fdk.GetContext(ctx)
@@ -67,7 +71,42 @@ func runExec(ctx context.Context, execCMDwithArgs string, in io.Reader, out io.W
 	signal.Notify(cancel, os.Interrupt)
 	defer signal.Stop(cancel)
 	cmd := exec.CommandContext(ctx, "/bin/sh", "-c", execCMDwithArgs)
-	cmd.Env = os.Environ()
+
+	callEnv := os.Environ()
+	seenHeaders := make(map[string]bool)
+	for k, vs := range fctx.Header() {
+		if validHeaderRegex.MatchString(k) {
+			newHeader := strings.Replace(strings.ToUpper(k), "-", "_", -1)
+
+			var envKey string
+			if strings.HasPrefix(newHeader, "FN_") {
+				envKey = newHeader
+			}
+
+			_, gotEnv := os.LookupEnv(envKey)
+			// never overwrite an existing env
+			if !gotEnv && !seenHeaders[envKey] {
+				seenHeaders[envKey] = true
+				callEnv = append(callEnv, fmt.Sprintf("%s=%s", envKey, vs[0]))
+			}
+
+		} else {
+			if debug {
+				log.Printf("saw invalid header key :%s", k	)
+			}
+		}
+	}
+
+	callEnv = append(callEnv, fmt.Sprintf("%s=%s", "FN_CALL_ID", fctx.CallID()))
+	callEnv = append(callEnv, fmt.Sprintf("%s=%s", "FN_CONTENT_TYPE", fctx.ContentType()))
+
+	if htcx, ok := fctx.(fdk.HTTPContext); ok {
+		callEnv = append(callEnv, fmt.Sprintf("%s=%s", "FN_HTTP_REQUEST_URL",htcx.RequestURL()))
+		callEnv = append(callEnv, fmt.Sprintf("%s=%s", "FN_HTTP_METHOD",htcx.RequestMethod()))
+
+	}
+
+	cmd.Env = callEnv
 	if in != nil {
 		cmd.Stdin = in
 	}

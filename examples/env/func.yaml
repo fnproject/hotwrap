@@ -1,0 +1,7 @@
+schema_version: 20180708
+name: env
+version: 0.0.11
+triggers:
+- name: test
+  type: http
+  source: /test
