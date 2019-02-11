@@ -76,13 +76,14 @@ HotWrap is a portable  statically linked binary that should work in any linux co
  
  You an receive invocation headers from function calls as environment variables. 
  
- All headers are transposed into environment variables using the following rules: 
+ All incoming function heaers are transposed into environment variables using the following rules: 
  
- * Prefixed with FN_H_
+ * Must start with Fn- (this includes http trigger/gateway headers (see below))
  * Capitalized 
+ * s/-/_/ 
  * Disambiguated by taking the first matching value where multiple headers are present or two headers resolve to the same variable. 
  
- 
+
  For HTTP request headers and details received from triggers these are mapped as follows: 
  
  * FN_HTTP_H_<Header Name> 
