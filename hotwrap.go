@@ -72,41 +72,8 @@ func runExec(ctx context.Context, execCMDwithArgs string, in io.Reader, out io.W
 	defer signal.Stop(cancel)
 	cmd := exec.CommandContext(ctx, "/bin/sh", "-c", execCMDwithArgs)
 
-	callEnv := os.Environ()
-	seenHeaders := make(map[string]bool)
-	for k, vs := range fctx.Header() {
-		if validHeaderRegex.MatchString(k) {
-			newHeader := strings.Replace(strings.ToUpper(k), "-", "_", -1)
 
-			var envKey string
-			if strings.HasPrefix(newHeader, "FN_") {
-				envKey = newHeader
-			}
-
-			_, gotEnv := os.LookupEnv(envKey)
-			// never overwrite an existing env
-			if !gotEnv && !seenHeaders[envKey] {
-				seenHeaders[envKey] = true
-				callEnv = append(callEnv, fmt.Sprintf("%s=%s", envKey, vs[0]))
-			}
-
-		} else {
-			if debug {
-				log.Printf("saw invalid header key :%s", k	)
-			}
-		}
-	}
-
-	callEnv = append(callEnv, fmt.Sprintf("%s=%s", "FN_CALL_ID", fctx.CallID()))
-	callEnv = append(callEnv, fmt.Sprintf("%s=%s", "FN_CONTENT_TYPE", fctx.ContentType()))
-
-	if htcx, ok := fctx.(fdk.HTTPContext); ok {
-		callEnv = append(callEnv, fmt.Sprintf("%s=%s", "FN_HTTP_REQUEST_URL",htcx.RequestURL()))
-		callEnv = append(callEnv, fmt.Sprintf("%s=%s", "FN_HTTP_METHOD",htcx.RequestMethod()))
-
-	}
-
-	cmd.Env = callEnv
+	cmd.Env = buildEnv(fctx)
 	if in != nil {
 		cmd.Stdin = in
 	}
@@ -129,6 +96,41 @@ func runExec(ctx context.Context, execCMDwithArgs string, in io.Reader, out io.W
 		return fmt.Errorf("error running exec: %v", err)
 	}
 	return nil
+}
+
+func buildEnv(fctx fdk.Context) []string {
+	callEnv := os.Environ()
+	seenHeaders := make(map[string]bool)
+	for k, vs := range fctx.Header() {
+		if validHeaderRegex.MatchString(k) {
+			newHeader := strings.Replace(strings.ToUpper(k), "-", "_", -1)
+
+			// For now we ignore direct invoke headers to avoid too much confusion about naming
+			if strings.HasPrefix(newHeader, "FN_") {
+				_, gotEnv := os.LookupEnv(newHeader)
+				// never overwrite an existing env
+				if !gotEnv && !seenHeaders[newHeader] {
+					seenHeaders[newHeader] = true
+					callEnv = append(callEnv, fmt.Sprintf("%s=%s", newHeader, vs[0]))
+				}
+			}
+
+		} else {
+			if debug {
+				log.Printf("saw possibly untranslatable header key :'%s' - skipping this header", k)
+			}
+		}
+	}
+	callEnv = append(callEnv, fmt.Sprintf("%s=%s", "FN_CALL_ID", fctx.CallID()))
+	if fctx.ContentType() != "" {
+		callEnv = append(callEnv, fmt.Sprintf("%s=%s", "FN_CONTENT_TYPE", fctx.ContentType()))
+	}
+	if httpCtx, ok := fctx.(fdk.HTTPContext); ok {
+		callEnv = append(callEnv, fmt.Sprintf("%s=%s", "FN_HTTP_REQUEST_URL", httpCtx.RequestURL()))
+		callEnv = append(callEnv, fmt.Sprintf("%s=%s", "FN_HTTP_METHOD", httpCtx.RequestMethod()))
+
+	}
+	return callEnv
 }
 
 func timeTrack(start time.Time, name string) {
