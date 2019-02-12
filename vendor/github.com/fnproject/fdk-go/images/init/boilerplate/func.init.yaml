@@ -1,5 +1,0 @@
-runtime: go
-build_image: fnproject/fdk-go-build:TAG
-run_image: fnproject/fdk-go-runtime:TAG
-cmd: ./func
-format: http-stream
