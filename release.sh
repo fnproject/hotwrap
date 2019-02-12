@@ -27,6 +27,6 @@ git tag -f -a $tag -m "version $version"
 git push
 git push origin $tag
 
-docker tag fnproject/fn:latest fnproject/hotwrap:${version}
+docker tag fnproject/hotwrap:latest fnproject/hotwrap:${version}
 docker push fnproject/hotwrap:${version}
 docker push fnproject/hotwrap:latest
